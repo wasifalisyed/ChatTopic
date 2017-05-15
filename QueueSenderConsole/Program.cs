@@ -35,23 +35,41 @@ namespace QueueSenderConsole
             int id = 3;
             Console.WriteLine("Press 1 for object 2 for json");
             var objectType = Console.ReadLine();
-            if (objectType == "1")
-            {
+           
+           
                 while (true)
                 {
+                  BrokeredMessage msg;
                     var input = "1";
                     var ord = new Order();
                     ord.OrderId = id;
                     ord.OrderTime = DateTime.Now;
                     ord.CustomerName = "wasif";
                     ord.Product = "ball";
-                    BrokeredMessage msg = new BrokeredMessage(ord);
-                    msg.MessageId = id.ToString();
-                    msg.Properties.Add("env", "test");
+                  
+                    ;
                     Task t = new Task(() =>
                     {
-                        qc.Send(msg);
-                        Console.WriteLine(msg.MessageId);
+                        if(objectType=="1")
+                        {
+                             msg = new BrokeredMessage(ord);
+                             msg.MessageId = id.ToString();
+                             msg.Properties.Add("type", "json");
+                             qc.Send(msg);
+                             Console.WriteLine(msg.MessageId);
+                        }
+                           
+                        else
+                        {
+                            string json = Newtonsoft.Json.JsonConvert.SerializeObject(ord);
+                            msg = new BrokeredMessage(json);
+                            msg.MessageId = id.ToString();
+                            msg.ContentType = "application/json";
+                            msg.Label = ord.GetType().ToString();
+                            qc.Send(msg);
+                        }
+                       
+                      
 
                     });
                     t.Start();
@@ -70,7 +88,7 @@ namespace QueueSenderConsole
                     id = id + 1;
                     
                 }
-            }
+            
         }
         static void CreateQueue()
         {
@@ -84,18 +102,39 @@ namespace QueueSenderConsole
         }
         static void MessageReader()
         {
-            Console.WriteLine("Press 1 for object and 2 for Json");
-            var objType = Console.ReadLine();
-            if(objType.Equals("1"))
-            {
+
+            Console.WriteLine("waiting for messages");
+            
+            
                 var qc = QueueClient.CreateFromConnectionString(connection, queue);
+                
                 qc.OnMessage(msg =>
                 {
-                    var obj = msg.GetBody<Order>();
-                    Console.WriteLine("Message Id:" + msg.MessageId + " CustomerName:" + obj.CustomerName + " Order Date: " + obj.OrderTime+" env value:"+msg.Properties["env"].ToString());
+                    var obj = new Order();
+                    if(!(msg.ContentType== "application/json"))
+                    {
+                        obj = msg.GetBody<Order>();
+                        Console.WriteLine("Message Id:" + msg.MessageId + " CustomerName:" + obj.CustomerName + " Order Date: " + obj.OrderTime );
+                    }
+                    else
+                    {
+                        string ord = msg.GetBody<string>();
+                        try
+                        {
+                           dynamic order = Newtonsoft.Json.JsonConvert.DeserializeObject(ord);
+                            Console.WriteLine("Message Id:" + msg.MessageId + " CustomerName:" + order.CustomerName + " Order Date: " + order.OrderTime);
+                        } catch(Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                        }
+                        
+
+                    }
+                  
+                   
 
                 });
-            }
+            
         }
     }
    
