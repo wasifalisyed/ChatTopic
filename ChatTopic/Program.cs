@@ -27,7 +27,9 @@ namespace ChatTopic
         private static void SendMessage()
         {
             Console.WriteLine("Type exit to close chat");
-            var tc = TopicClient.CreateFromConnectionString(connection, topic);
+            var factory = MessagingFactory.CreateFromConnectionString(connection);
+            var tc = factory.CreateTopicClient(topic);
+           // var tc = TopicClient.CreateFromConnectionString(connection, topic);
             tc.Send(new BrokeredMessage("Hey") { Label = name });
             while(true)
             {
@@ -36,22 +38,26 @@ namespace ChatTopic
                     break;
                 tc.Send(new BrokeredMessage(text) { Label = name });
             }
+            factory.Close();
         }
 
         private static void MessagePump()
         {
-            var sc = SubscriptionClient.CreateFromConnectionString(connection, topic,"AllChat");
+            var factory = MessagingFactory.CreateFromConnectionString(connection);
+            var sc = factory.CreateSubscriptionClient(topic,name);
+           // var sc = SubscriptionClient.CreateFromConnectionString(connection, topic,"AllChat");
             sc.OnMessage(msg =>
            {
-               if(msg.Label!=name)
+               if (msg.Label != name)
                {
-                   Console.WriteLine(msg.Label + " says:" + msg.GetBody<string>());
+                   Console.WriteLine(msg.Label + ">" + msg.GetBody<string>());
                }
-               else
-               {
-                   msg.Abandon();
-               }
-            }
+               //else
+               //{
+               //    msg.Abandon();
+                
+               //}
+           }
             );
 
         }
@@ -63,6 +69,7 @@ namespace ChatTopic
             {
                 TopicDescription td = new TopicDescription(topic);
                 td.MaxSizeInMegabytes = 5120;
+                td.AutoDeleteOnIdle = TimeSpan.FromMinutes(5);
                 td.DefaultMessageTimeToLive = new TimeSpan(0, 50, 0);
                // td.Path = topic;
                 manager.CreateTopic(td);
@@ -72,10 +79,10 @@ namespace ChatTopic
         private static void CreateNamespace()
         {
             var manager = NamespaceManager.CreateFromConnectionString(connection);
-            if(!manager.SubscriptionExists(topic,"AllChat"))
+            if(!manager.SubscriptionExists(topic,name))
             {
            
-                manager.CreateSubscription(topic,"AllChat");
+                manager.CreateSubscription(topic,name);
             }
         }
     }
